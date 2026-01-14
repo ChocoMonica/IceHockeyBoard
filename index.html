@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Hockey Board with Puck</title>
+    <title>Hockey Board Responsive</title>
     <script src="https://unpkg.com/konva@9/konva.min.js"></script>
     <style>
         body {
@@ -22,24 +22,24 @@
         }
         #toolbar {
             position: absolute;
-            bottom: 20px;
+            bottom: 10px; /* 少し詰める */
             left: 50%;
             transform: translateX(-50%);
             display: flex;
-            gap: 10px;
+            gap: 8px; /* 間隔も少し詰める */
             background: rgba(255, 255, 255, 0.95);
-            padding: 10px 15px;
+            padding: 8px 12px;
             border-radius: 12px;
             box-shadow: 0 4px 10px rgba(0,0,0,0.3);
             flex-wrap: wrap; 
             justify-content: center;
             width: auto; 
-            min-width: 300px;
+            min-width: 280px;
             z-index: 100;
         }
         button {
-            padding: 12px 16px;
-            font-size: 14px;
+            padding: 10px 14px;
+            font-size: 13px; /* ボタン文字も少し小さく */
             font-weight: bold;
             border: 1px solid #ccc;
             border-radius: 8px;
@@ -58,9 +58,32 @@
             color: #d9534f;
             border-color: #d9534f;
         }
+        /* スマホ縦向き警告用 */
+        #portrait-warning {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.9);
+            color: white;
+            z-index: 9999;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            font-size: 18px;
+            padding: 20px;
+        }
+        @media (orientation: portrait) {
+            #portrait-warning { display: flex; }
+        }
     </style>
 </head>
 <body>
+
+    <div id="portrait-warning">
+        <p>⚠️ 画面を横向きにしてください ⚠️</p>
+        <p>Please rotate your device</p>
+    </div>
 
     <div id="container"></div>
 
@@ -72,9 +95,24 @@
     </div>
 
     <script>
-        // --- 1. キャンバス設定 ---
+        // --- 1. サイズ計算の基準を作る ---
+        // 画面幅が変わっても比率を保つための「ユニット」を計算
         const width = window.innerWidth;
         const height = window.innerHeight;
+
+        // 基準サイズ（画面の短い方を基準にする）
+        const baseSize = Math.min(width, height);
+        
+        // 各種サイズの自動計算
+        const SIZES = {
+            lineThick: baseSize * 0.006,    // 線の太さ
+            lineThin: baseSize * 0.003,     // 細い線の太さ
+            playerRadius: baseSize * 0.028, // 選手の大きさ（半径）
+            puckRadius: baseSize * 0.015,   // パックの大きさ
+            fontSize: baseSize * 0.022,     // 文字サイズ
+            benchTop: height * 0.1,         // 上ベンチの高さ
+            toolbarArea: height * 0.15      // 下のツールバーエリア
+        };
 
         const stage = new Konva.Stage({
             container: 'container',
@@ -92,16 +130,14 @@
         stage.add(drawingLayer);
         stage.add(playerLayer);
 
-        // --- 2. リンク描画とレイアウト ---
-        
-        const benchHeightTop = 60;    
-        const toolbarHeight = 90;     
+
+        // --- 2. リンク描画 (レスポンシブ対応) ---
         
         const padding = 10;
         const rinkWidth = width - (padding * 2);
-        const rinkHeight = height - benchHeightTop - toolbarHeight - padding;
+        const rinkHeight = height - SIZES.benchTop - SIZES.toolbarArea - padding;
         const startX = padding;
-        const startY = benchHeightTop + padding; 
+        const startY = SIZES.benchTop + padding; 
 
         // 氷の面
         const ice = new Konva.Rect({
@@ -109,7 +145,7 @@
             width: rinkWidth, height: rinkHeight,
             fill: 'white',
             stroke: 'black',
-            strokeWidth: 4,
+            strokeWidth: SIZES.lineThick,
             cornerRadius: rinkHeight * 0.12,
             listening: false 
         });
@@ -123,54 +159,58 @@
         });
         backgroundLayer.add(rinkGroup);
 
-        // --- ライン描画 ---
+        // --- ライン関係 ---
+        // センターライン
         rinkGroup.add(new Konva.Line({
             points: [startX + rinkWidth / 2, startY, startX + rinkWidth / 2, startY + rinkHeight],
-            stroke: '#C8102E', strokeWidth: 4
+            stroke: '#C8102E', strokeWidth: SIZES.lineThick
         }));
 
+        // ブルーライン
         const zoneWidth = rinkWidth / 3;
         rinkGroup.add(new Konva.Line({
             points: [startX + zoneWidth, startY, startX + zoneWidth, startY + rinkHeight],
-            stroke: '#0033A0', strokeWidth: 4
+            stroke: '#0033A0', strokeWidth: SIZES.lineThick
         }));
         rinkGroup.add(new Konva.Line({
             points: [startX + rinkWidth - zoneWidth, startY, startX + rinkWidth - zoneWidth, startY + rinkHeight],
-            stroke: '#0033A0', strokeWidth: 4
+            stroke: '#0033A0', strokeWidth: SIZES.lineThick
         }));
 
+        // ゴールライン
         const goalDist = rinkWidth * 0.05;
         rinkGroup.add(new Konva.Line({
             points: [startX + goalDist, startY, startX + goalDist, startY + rinkHeight],
-            stroke: '#C8102E', strokeWidth: 2
+            stroke: '#C8102E', strokeWidth: SIZES.lineThin
         }));
         rinkGroup.add(new Konva.Line({
             points: [startX + rinkWidth - goalDist, startY, startX + rinkWidth - goalDist, startY + rinkHeight],
-            stroke: '#C8102E', strokeWidth: 2
+            stroke: '#C8102E', strokeWidth: SIZES.lineThin
         }));
 
         // --- サークル関係 ---
+        // センターサークル
         rinkGroup.add(new Konva.Circle({
             x: startX + rinkWidth / 2,
             y: startY + rinkHeight / 2,
             radius: rinkHeight * 0.15,
-            stroke: '#0033A0', strokeWidth: 2
+            stroke: '#0033A0', strokeWidth: SIZES.lineThin
         }));
         rinkGroup.add(new Konva.Circle({
             x: startX + rinkWidth / 2,
             y: startY + rinkHeight / 2,
-            radius: 4, fill: '#0033A0'
+            radius: SIZES.lineThin * 1.5, fill: '#0033A0'
         }));
 
         function drawFaceoffCircle(cx, cy) {
             rinkGroup.add(new Konva.Circle({
                 x: cx, y: cy,
                 radius: rinkHeight * 0.15,
-                stroke: '#C8102E', strokeWidth: 2
+                stroke: '#C8102E', strokeWidth: SIZES.lineThin
             }));
             rinkGroup.add(new Konva.Circle({
                 x: cx, y: cy,
-                radius: 4, fill: '#C8102E'
+                radius: SIZES.lineThin * 1.5, fill: '#C8102E'
             }));
         }
 
@@ -184,6 +224,7 @@
         drawFaceoffCircle(circleX_Right, circleY_Top);
         drawFaceoffCircle(circleX_Right, circleY_Bottom);
 
+        // ゴールクリーズ
         rinkGroup.add(new Konva.Arc({
             x: startX + goalDist,
             y: startY + rinkHeight / 2,
@@ -204,15 +245,18 @@
         }));
 
 
-        // --- 3. 選手・レフェリー マグネット ---
+        // --- 3. 選手・レフェリー (サイズ自動計算) ---
         function addPlayer(x, y, color, label) {
             const group = new Konva.Group({
                 x: x, y: y,
                 draggable: true,
             });
 
+            // 円の大きさ計算
+            const r = SIZES.playerRadius;
+
             const circle = new Konva.Circle({
-                radius: 18,
+                radius: r,
                 fill: color,
                 stroke: 'white',
                 strokeWidth: 2,
@@ -224,13 +268,14 @@
 
             const text = new Konva.Text({
                 text: label,
-                fontSize: 13,
+                fontSize: SIZES.fontSize,
                 fill: 'white',
                 fontStyle: 'bold',
                 align: 'center',
                 verticalAlign: 'middle',
-                offsetX: 9,
-                offsetY: 6,
+                // 中心合わせ計算
+                offsetX: SIZES.fontSize * 0.7, 
+                offsetY: SIZES.fontSize * 0.45,
             });
 
             group.add(circle);
@@ -241,21 +286,25 @@
 
             playerLayer.add(group);
 
+            // キャッシュサイズも動的に
+            const cacheSize = r * 2 + 10;
             group.cache({
                 pixelRatio: 3,
-                x: -25, y: -25, width: 50, height: 50
+                x: -r - 5, y: -r - 5, width: cacheSize, height: cacheSize
             });
         }
 
-        // --- パック追加関数 ---
+        // --- パック (サイズ自動計算) ---
         function addPuck(x, y) {
             const group = new Konva.Group({
                 x: x, y: y,
                 draggable: true,
             });
 
+            const r = SIZES.puckRadius;
+
             const puck = new Konva.Circle({
-                radius: 10, // 選手より小さく
+                radius: r,
                 fill: 'black',
                 stroke: '#666',
                 strokeWidth: 1,
@@ -272,10 +321,10 @@
 
             playerLayer.add(group);
             
-            // パックもキャッシュして軽量化
+            const cacheSize = r * 2 + 6;
             group.cache({
                 pixelRatio: 3,
-                x: -15, y: -15, width: 30, height: 30
+                x: -r - 3, y: -r - 3, width: cacheSize, height: cacheSize
             });
         }
 
@@ -284,21 +333,23 @@
         const playerPositions = ['LW', 'CF', 'RW', 'LD', 'RD'];
         const halfWidth = width / 2;
         const playerStep = halfWidth / 6; 
+        const playerY = SIZES.benchTop * 0.6; // ベンチエリアの中央
 
         // 赤チーム
         playerPositions.forEach((pos, index) => {
             const x = playerStep * (index + 0.8); 
-            addPlayer(x, 35, '#d62828', pos);
+            addPlayer(x, playerY, '#d62828', pos);
         });
 
         // 青チーム
         playerPositions.forEach((pos, index) => {
             const x = halfWidth + (playerStep * (index + 0.8));
-            addPlayer(x, 35, '#0077b6', pos);
+            addPlayer(x, playerY, '#0077b6', pos);
         });
 
-        // レフェリー & パック
-        const refY = height - 55; 
+        // レフェリー & パック位置
+        // ツールバーの上側、画面下から少し浮かせた位置
+        const refY = height - SIZES.toolbarArea + 20; 
 
         // 左審判
         const leftRefs = ['L1', 'L2'];
@@ -314,15 +365,12 @@
             addPlayer(x, refY, '#444444', pos);
         });
         
-        // ★ パック配置 ★
-        // 1. センターフェイスオフスポット
+        // パック配置
         addPuck(startX + rinkWidth / 2, startY + rinkHeight / 2);
-        
-        // 2. 予備（ツールバーの上、審判の真ん中あたり）
         addPuck(width * 0.5, refY);
 
 
-        // --- 4. ペンと消しゴムの実装 ---
+        // --- 4. ペンと消しゴム ---
         let isPaint = false;
         let mode = 'drag'; 
         let lastLine;
@@ -333,8 +381,6 @@
                 mode = m;
                 updateButtons();
                 const isDraggable = (mode === 'drag');
-                
-                // パックも含めてすべてのマグネットの操作可否を切り替え
                 playerLayer.find('Group').forEach(g => g.draggable(isDraggable));
             });
         });
@@ -351,9 +397,12 @@
             isPaint = true;
             const pos = stage.getPointerPosition();
             
+            // 線の太さも画面サイズに連動させる
+            const penWidth = mode === 'pen' ? SIZES.lineThick : SIZES.playerRadius * 1.5;
+            
             lastLine = new Konva.Line({
                 stroke: mode === 'pen' ? 'black' : '#222',
-                strokeWidth: mode === 'pen' ? 3 : 30,
+                strokeWidth: penWidth,
                 globalCompositeOperation: mode === 'pen' ? 'source-over' : 'destination-out',
                 points: [pos.x, pos.y],
                 lineCap: 'round',
@@ -379,6 +428,17 @@
         document.getElementById('clear-btn').addEventListener('click', function() {
             drawingLayer.destroyChildren();
             drawingLayer.batchDraw();
+        });
+
+        // ★★★ レスポンシブ対応の肝 ★★★
+        // 画面サイズが変わったり、スマホを回転させた時に
+        // ページを再読み込みしてレイアウトを直す処理
+        window.addEventListener("resize", function() {
+            // 文字入力中などでキーボードが出ただけの時はリロードしない判定などを入れるのが本格的ですが
+            // 簡易的に「横幅が大きく変わったらリロード」とします
+            if (Math.abs(window.innerWidth - width) > 100) {
+                location.reload();
+            }
         });
 
     </script>
