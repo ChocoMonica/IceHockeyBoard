@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Hockey Board Smooth</title>
+    <script src="https://unpkg.com/konva@9/konva.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #222;
+            touch-action: none;
+            font-family: sans-serif;
+            /* iOS特有のタップハイライトを消す */
+            -webkit-tap-highlight-color: transparent; 
+        }
+        #container {
+            width: 100vw;
+            height: 100vh;
+            background-color: #222;
+        }
+        #toolbar {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 10px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 10px 15px;
+            border-radius: 12px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            flex-wrap: wrap; 
+            justify-content: center;
+            width: auto; 
+            min-width: 300px;
+            z-index: 100;
+        }
+        button {
+            padding: 12px 16px;
+            font-size: 14px;
+            font-weight: bold;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            background: white;
+            color: #333;
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+        button.active {
+            background-color: #007bff;
+            color: white;
+            border-color: #007bff;
+            box-shadow: 0 2px 4px rgba(0,123,255,0.3);
+        }
+        button#clear-btn {
+            color: #d9534f;
+            border-color: #d9534f;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="container"></div>
+
+    <div id="toolbar">
+        <button id="mode-drag" class="active">✋ 移動</button>
+        <button id="mode-pen">🖊️ ペン</button>
+        <button id="mode-eraser">🧽 消しゴム</button>
+        <button id="clear-btn">全消去</button>
+    </div>
+
+    <script>
+        // --- 1. キャンバス設定 ---
+        const width = window.innerWidth;
+        const height = window.innerHeight;
+
+        const stage = new Konva.Stage({
+            container: 'container',
+            width: width,
+            height: height,
+        });
+
+        // 描画パフォーマンス向上のため、hitGraph（当たり判定）の描画を最適化
+        Konva.hitOnDragEnabled = true;
+
+        const backgroundLayer = new Konva.Layer();
+        const drawingLayer = new Konva.Layer();
+        const playerLayer = new Konva.Layer(); 
+        
+        stage.add(backgroundLayer);
+        stage.add(drawingLayer);
+        stage.add(playerLayer);
+
+        // --- 2. リンク描画とレイアウト ---
+        
+        const benchHeightTop = 60;    
+        const toolbarHeight = 90;     
+        
+        const padding = 10;
+        const rinkWidth = width - (padding * 2);
+        const rinkHeight = height - benchHeightTop - toolbarHeight - padding;
+        const startX = padding;
+        const startY = benchHeightTop + padding; 
+
+        // 氷の面
+        const ice = new Konva.Rect({
+            x: startX, y: startY,
+            width: rinkWidth, height: rinkHeight,
+            fill: 'white',
+            stroke: 'black',
+            strokeWidth: 4,
+            cornerRadius: rinkHeight * 0.12,
+            listening: false // 背景はタッチ反応しなくていい（軽量化）
+        });
+        backgroundLayer.add(ice);
+
+        const rinkGroup = new Konva.Group({
+            clipFunc: function(ctx) {
+                ctx.roundRect(startX, startY, rinkWidth, rinkHeight, rinkHeight * 0.12);
+            },
+            listening: false // ラインもタッチ反応不要
+        });
+        backgroundLayer.add(rinkGroup);
+
+        // --- ライン描画 ---
+        rinkGroup.add(new Konva.Line({
+            points: [startX + rinkWidth / 2, startY, startX + rinkWidth / 2, startY + rinkHeight],
+            stroke: '#C8102E', strokeWidth: 4
+        }));
+
+        const zoneWidth = rinkWidth / 3;
+        rinkGroup.add(new Konva.Line({
+            points: [startX + zoneWidth, startY, startX + zoneWidth, startY + rinkHeight],
+            stroke: '#0033A0', strokeWidth: 4
+        }));
+        rinkGroup.add(new Konva.Line({
+            points: [startX + rinkWidth - zoneWidth, startY, startX + rinkWidth - zoneWidth, startY + rinkHeight],
+            stroke: '#0033A0', strokeWidth: 4
+        }));
+
+        const goalDist = rinkWidth * 0.05;
+        rinkGroup.add(new Konva.Line({
+            points: [startX + goalDist, startY, startX + goalDist, startY + rinkHeight],
+            stroke: '#C8102E', strokeWidth: 2
+        }));
+        rinkGroup.add(new Konva.Line({
+            points: [startX + rinkWidth - goalDist, startY, startX + rinkWidth - goalDist, startY + rinkHeight],
+            stroke: '#C8102E', strokeWidth: 2
+        }));
+
+        // --- サークル関係 ---
+        rinkGroup.add(new Konva.Circle({
+            x: startX + rinkWidth / 2,
+            y: startY + rinkHeight / 2,
+            radius: rinkHeight * 0.15,
+            stroke: '#0033A0', strokeWidth: 2
+        }));
+        rinkGroup.add(new Konva.Circle({
+            x: startX + rinkWidth / 2,
+            y: startY + rinkHeight / 2,
+            radius: 4, fill: '#0033A0'
+        }));
+
+        function drawFaceoffCircle(cx, cy) {
+            rinkGroup.add(new Konva.Circle({
+                x: cx, y: cy,
+                radius: rinkHeight * 0.15,
+                stroke: '#C8102E', strokeWidth: 2
+            }));
+            rinkGroup.add(new Konva.Circle({
+                x: cx, y: cy,
+                radius: 4, fill: '#C8102E'
+            }));
+        }
+
+        const circleX_Left = startX + zoneWidth * 0.55;
+        const circleX_Right = startX + rinkWidth - (zoneWidth * 0.55);
+        const circleY_Top = startY + rinkHeight * 0.25;
+        const circleY_Bottom = startY + rinkHeight * 0.75;
+
+        drawFaceoffCircle(circleX_Left, circleY_Top);
+        drawFaceoffCircle(circleX_Left, circleY_Bottom);
+        drawFaceoffCircle(circleX_Right, circleY_Top);
+        drawFaceoffCircle(circleX_Right, circleY_Bottom);
+
+        rinkGroup.add(new Konva.Arc({
+            x: startX + goalDist,
+            y: startY + rinkHeight / 2,
+            innerRadius: 0,
+            outerRadius: rinkHeight * 0.06,
+            angle: 180,
+            rotation: -90,
+            fill: '#41b6e6', opacity: 0.5
+        }));
+        rinkGroup.add(new Konva.Arc({
+            x: startX + rinkWidth - goalDist,
+            y: startY + rinkHeight / 2,
+            innerRadius: 0,
+            outerRadius: rinkHeight * 0.06,
+            angle: 180,
+            rotation: 90,
+            fill: '#41b6e6', opacity: 0.5
+        }));
+
+
+        // --- 3. 選手・レフェリー マグネット ---
+        // ここで高速化処理を行います
+        function addPlayer(x, y, color, label) {
+            const group = new Konva.Group({
+                x: x, y: y,
+                draggable: true,
+            });
+
+            const circle = new Konva.Circle({
+                radius: 18,
+                fill: color,
+                stroke: 'white',
+                strokeWidth: 2,
+                shadowColor: 'black',
+                shadowBlur: 3,
+                shadowOffset: {x: 1, y: 1},
+                shadowOpacity: 0.5
+            });
+
+            const text = new Konva.Text({
+                text: label,
+                fontSize: 13,
+                fill: 'white',
+                fontStyle: 'bold',
+                align: 'center',
+                verticalAlign: 'middle',
+                offsetX: 9,
+                offsetY: 6,
+            });
+
+            group.add(circle);
+            group.add(text);
+            
+            group.on('mouseenter', () => stage.container().style.cursor = 'pointer');
+            group.on('mouseleave', () => stage.container().style.cursor = 'default');
+
+            // レイヤーに追加
+            playerLayer.add(group);
+
+            // ★★★ 高速化の魔法の呪文 ★★★
+            // これにより、iPadが毎回計算するのをやめて、画像をスタンプのように動かすようになります
+            // pixelRatio: 3 にすることで、iPadの高解像度でもボヤけません
+            group.cache({
+                pixelRatio: 3,
+                // 影が切れないように少し余白を持たせてキャッシュする
+                x: -25, y: -25, width: 50, height: 50
+            });
+        }
+
+        const playerPositions = ['LW', 'CF', 'RW', 'LD', 'RD'];
+        const halfWidth = width / 2;
+        const playerStep = halfWidth / 6; 
+
+        // 赤チーム
+        playerPositions.forEach((pos, index) => {
+            const x = playerStep * (index + 0.8); 
+            addPlayer(x, 35, '#d62828', pos);
+        });
+
+        // 青チーム
+        playerPositions.forEach((pos, index) => {
+            const x = halfWidth + (playerStep * (index + 0.8));
+            addPlayer(x, 35, '#0077b6', pos);
+        });
+
+        // レフェリー
+        const refY = height - 55; 
+
+        const leftRefs = ['L1', 'L2'];
+        leftRefs.forEach((pos, index) => {
+            const x = width * (0.08 + (index * 0.08)); 
+            addPlayer(x, refY, '#444444', pos);
+        });
+
+        const rightRefs = ['R1', 'R2'];
+        rightRefs.forEach((pos, index) => {
+            const x = width * (0.84 + (index * 0.08));
+            addPlayer(x, refY, '#444444', pos);
+        });
+
+
+        // --- 4. ペンと消しゴムの実装 ---
+        let isPaint = false;
+        let mode = 'drag'; 
+        let lastLine;
+
+        const modes = ['drag', 'pen', 'eraser'];
+        modes.forEach(m => {
+            document.getElementById(`mode-${m}`).addEventListener('click', () => {
+                mode = m;
+                updateButtons();
+                const isDraggable = (mode === 'drag');
+                
+                // キャッシュしていてもdraggableの切り替えは有効です
+                playerLayer.find('Group').forEach(g => g.draggable(isDraggable));
+            });
+        });
+
+        function updateButtons() {
+            modes.forEach(m => {
+                const btn = document.getElementById(`mode-${m}`);
+                btn.className = (mode === m) ? 'active' : '';
+            });
+        }
+
+        stage.on('mousedown touchstart', function (e) {
+            if (mode === 'drag') return;
+            isPaint = true;
+            const pos = stage.getPointerPosition();
+            
+            lastLine = new Konva.Line({
+                stroke: mode === 'pen' ? 'black' : '#222',
+                strokeWidth: mode === 'pen' ? 3 : 30,
+                globalCompositeOperation: mode === 'pen' ? 'source-over' : 'destination-out',
+                points: [pos.x, pos.y],
+                lineCap: 'round',
+                lineJoin: 'round',
+                tension: 0.5,
+                listening: false 
+            });
+            drawingLayer.add(lastLine);
+        });
+
+        stage.on('mouseup touchend', function () {
+            isPaint = false;
+        });
+
+        stage.on('mousemove touchmove', function (e) {
+            if (!isPaint || mode === 'drag') return;
+            e.evt.preventDefault();
+            const pos = stage.getPointerPosition();
+            const newPoints = lastLine.points().concat([pos.x, pos.y]);
+            lastLine.points(newPoints);
+        });
+
+        document.getElementById('clear-btn').addEventListener('click', function() {
+            drawingLayer.destroyChildren();
+            drawingLayer.batchDraw();
+        });
+
+    </script>
+</body>
+</html>
