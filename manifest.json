@@ -1,0 +1,15 @@
+{
+  "name": "Hockey Board",
+  "short_name": "Board",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#222222",
+  "theme_color": "#222222",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/2070/2070764.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ]
+}
